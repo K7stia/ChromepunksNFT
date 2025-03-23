@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NFT Drop на Avalanche</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; }
+        .nft { border: 1px solid #ccc; padding: 10px; margin: 10px; display: inline-block; }
+        button { padding: 10px 20px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Моя NFT Колекція</h1>
+    <div id="nft-list"></div>
+    <button onclick="loadNFTs()">Показати NFT</button>
+    <button onclick="mintNFT()">Мінтити NFT</button>
+
+    <!-- Підключення thirdweb через CDN -->
+    <script src="https://unpkg.com/@thirdweb-dev/sdk@latest/dist/thirdweb-dev-sdk.browser.js"></script>
+    <script>
+        // Ініціалізація SDK для Avalanche
+        const sdk = new thirdweb.ThirdwebSDK("avalanche", {
+            clientId: "ВАШ_CLIENT_ID" // Замініть на ваш clientId з thirdweb.com
+        });
+
+        // Підключення до контракту NFT Drop
+        const contractAddress = "0x0A371076422786aFBb6e174bcE89132D7A44E2a5";
+        let contract;
+
+        // Функція для завантаження всіх NFT
+        async function loadNFTs() {
+            try {
+                contract = await sdk.getContract(contractAddress, "nft-drop");
+                const nfts = await contract.getAll();
+                const nftList = document.getElementById("nft-list");
+                nftList.innerHTML = ""; // Очистити список
+
+                if (nfts.length === 0) {
+                    nftList.innerHTML = "<p>Колекція порожня або ще не створена.</p>";
+                    return;
+                }
+
+                nfts.forEach(nft => {
+                    const nftDiv = document.createElement("div");
+                    nftDiv.className = "nft";
+                    nftDiv.innerHTML = `
+                        <h3>${nft.metadata.name || "Без назви"}</h3>
+                        <img src="${nft.metadata.image || ''}" width="150" onerror="this.style.display='none'" />
+                        <p>ID: ${nft.metadata.id}</p>
+                        <p>Власник: ${nft.owner.slice(0, 6)}...${nft.owner.slice(-4)}</p>
+                    `;
+                    nftList.appendChild(nftDiv);
+                });
+            } catch (error) {
+                console.error("Помилка завантаження NFT:", error);
+                alert("Не вдалося завантажити NFT. Перевірте консоль.");
+            }
+        }
+
+        // Функція для мінтингу нового NFT
+        async function mintNFT() {
+            try {
+                // Перевірка підключення гаманця
+                if (!window.ethereum) {
+                    alert("Встановіть MetaMask для мінтингу!");
+                    return;
+                }
+
+                // Підключення гаманця
+                await window.ethereum.request({ method: "eth_requestAccounts" });
+                const signer = await sdk.getSigner(window.ethereum);
+                sdk.setSignerOrProvider(signer);
+
+                contract = await sdk.getContract(contractAddress, "nft-drop");
+
+                // Перевірка, чи відкритий мінтинг
+                const isClaimable = await contract.claimConditions.getActive();
+                if (!isClaimable) {
+                    alert("Мінтинг закритий або ще не почався.");
+                    return;
+                }
+
+                // Виконання мінтингу (1 NFT)
+                const tx = await contract.claim(1);
+                alert(`NFT успішно замінчено! Транзакція: ${tx.receipt.transactionHash}`);
+                loadNFTs(); // Оновити список після мінтингу
+            } catch (error) {
+                console.error("Помилка мінтингу:", error);
+                alert("Не вдалося замінтити NFT. Перевірте консоль.");
+            }
+        }
+    </script>
+</body>
+</html>
